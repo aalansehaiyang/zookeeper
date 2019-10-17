@@ -86,7 +86,7 @@ import org.slf4j.LoggerFactory;
  * resulting in another round of leader determination.</li>
  * </ul>
  */
-public class LeaderElectionSupport implements Watcher {
+public class sLeaderElectionSupport implements Watcher {
 
     private static final Logger LOG = LoggerFactory.getLogger(LeaderElectionSupport.class);
 
@@ -171,6 +171,7 @@ public class LeaderElectionSupport implements Watcher {
         synchronized (this) {
             newLeaderOffer.setHostName(hostName);
             hostnameBytes = hostName.getBytes();
+            // 创建znode，发起选举请求
             newLeaderOffer.setNodePath(zooKeeper.create(rootNodeName + "/" + "n_",
                                                         hostnameBytes, ZooDefs.Ids.OPEN_ACL_UNSAFE,
                                                         CreateMode.EPHEMERAL_SEQUENTIAL));
@@ -194,6 +195,7 @@ public class LeaderElectionSupport implements Watcher {
 
         String[] components = currentLeaderOffer.getNodePath().split("/");
 
+        // 当前选举请求创建的id号
         currentLeaderOffer.setId(Integer.valueOf(components[components.length - 1].substring("n_".length())));
 
         List<LeaderOffer> leaderOffers = toLeaderOffers(zooKeeper.getChildren(rootNodeName, false));
@@ -212,9 +214,11 @@ public class LeaderElectionSupport implements Watcher {
 
                 dispatchEvent(EventType.DETERMINE_COMPLETE);
 
+                // 如果当前节点的编号排在第一位（也就是最小值），说明竞选成功，成为master
                 if (i == 0) {
                     becomeLeader();
                 } else {
+                    // 否则，对前一个节点添加监听
                     becomeReady(leaderOffers.get(i - 1));
                 }
 
@@ -236,6 +240,7 @@ public class LeaderElectionSupport implements Watcher {
          * Make sure to pass an explicit Watcher because we could be sharing this
          * zooKeeper instance with someone else.
          */
+        // 添加监听
         Stat stat = zooKeeper.exists(neighborLeaderOffer.getNodePath(), this);
 
         if (stat != null) {
@@ -332,6 +337,7 @@ public class LeaderElectionSupport implements Watcher {
                     "Node {} deleted. Need to run through the election process.",
                     event.getPath());
                 try {
+                    // 接收监听事件，再一次发起选举
                     determineElectionStatus();
                 } catch (KeeperException | InterruptedException e) {
                     becomeFailed(e);
